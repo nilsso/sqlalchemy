@@ -125,6 +125,7 @@ def de_stringify_annotation(
     originating_module: str,
     str_cleanup_fn: Optional[Callable[[str, str], str]] = None,
     include_generic: bool = False,
+    skip_fwd_ref: ForwardRef | None = None,
 ) -> Type[Any]:
     """Resolve annotations that may be string based into real objects.
 
@@ -140,11 +141,14 @@ def de_stringify_annotation(
     # or construct ForwardRef objects which is documented as something
     # that should be avoided.
 
+    fwd_ref: ForwardRef | None = None
+
     if (
         is_fwd_ref(annotation)
         and not cast(ForwardRef, annotation).__forward_evaluated__
     ):
-        annotation = cast(ForwardRef, annotation).__forward_arg__
+        fwd_ref = cast(ForwardRef, annotation)
+        annotation = fwd_ref.__forward_arg__
 
     if isinstance(annotation, str):
         if str_cleanup_fn:
@@ -158,12 +162,17 @@ def de_stringify_annotation(
         and not is_literal(annotation)
     ):
         elements = tuple(
-            de_stringify_annotation(
-                cls,
-                elem,
-                originating_module,
-                str_cleanup_fn=str_cleanup_fn,
-                include_generic=include_generic,
+            (
+                de_stringify_annotation(
+                    cls,
+                    elem,
+                    originating_module,
+                    str_cleanup_fn=str_cleanup_fn,
+                    include_generic=include_generic,
+                    skip_fwd_ref=fwd_ref,
+                )
+                if elem != skip_fwd_ref
+                else elem
             )
             for elem in annotation.__args__
         )
